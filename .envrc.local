@@ -1,0 +1,7 @@
+# .envrc.local
+#
+# Shared env vars commmitted to git and made available to all developers.
+# As much configuration should go here as possible so that new env vars
+# don't break anyone and everyone gets to benefit from improvements.
+# But don't add anything too secret or custom.
+#

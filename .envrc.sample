@@ -1,0 +1,8 @@
+# Sample .envrc file. Copy this to .envrc and customize to your needs,
+# but don't commit to git. Anything (non-sensitive) you want to share
+# with other developers should go in .envrc.local (and git).
+
+# Source common configuration for all developers (committed to git)
+source_env .envrc.local
+
+# Custom/sensitive env values go here
