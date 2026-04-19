@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashcards</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f2eb;
+    --surface: #fffef9;
+    --border: #d8d3c8;
+    --text: #1a1814;
+    --muted: #7a7568;
+    --accent: #2a4a3e;
+    --accent-light: #e8f0ed;
+    --danger: #8b2e2e;
+    --danger-light: #f5eaea;
+    --success: #2a4a3e;
+    --success-light: #e8f0ed;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'DM Sans', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .wordmark {
+    font-family: var(--serif);
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+
+  /* --- Setup screen --- */
+  #setup { display: flex; flex-direction: column; gap: 1.25rem; }
+
+  .field-label {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .hint strong { color: var(--text); font-weight: 500; }
+
+  .btn-primary {
+    padding: 11px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    align-self: flex-start;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+  .error {
+    font-size: 13px;
+    color: var(--danger);
+    display: none;
+    padding: 10px 14px;
+    background: var(--danger-light);
+    border-radius: 8px;
+    border: 1px solid #e0b8b8;
+  }
+
+  /* --- Study screen --- */
+  #study { display: none; flex-direction: column; gap: 1.5rem; }
+
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2.5rem 2rem;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    text-align: center;
+    position: relative;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+
+  .card-tag {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    position: absolute;
+    top: 16px;
+    left: 20px;
+  }
+
+  #prompt {
+    font-family: var(--serif);
+    font-size: 26px;
+    line-height: 1.35;
+    color: var(--text);
+  }
+
+  .divider {
+    width: 32px;
+    height: 1px;
+    background: var(--border);
+    display: none;
+  }
+
+  #answer {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--muted);
+    display: none;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-reveal {
+    flex: 1;
+    padding: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-reveal:hover { background: var(--bg); border-color: #bbb; }
+
+  .btn-got {
+    flex: 1;
+    padding: 11px;
+    background: var(--success-light);
+    border: 1px solid #b8d0c8;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--success);
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: none;
+  }
+  .btn-got:hover { opacity: 0.8; }
+
+  .btn-miss {
+    flex: 1;
+    padding: 11px;
+    background: var(--danger-light);
+    border: 1px solid #e0b8b8;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--danger);
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: none;
+  }
+  .btn-miss:hover { opacity: 0.8; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .stat-num {
+    font-family: var(--serif);
+    font-size: 28px;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .btn-link {
+    font-size: 12px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    text-decoration: underline;
+    padding: 0;
+  }
+  .btn-link:hover { color: var(--text); }
+
+  .keyboard-hint {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+  }
+  kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <p class="wordmark">Flashcards</p>
+
+  <!-- Setup -->
+  <div id="setup">
+    <div>
+      <label class="field-label" for="url-input">Google Sheets CSV URL</label>
+      <input type="text" id="url-input" placeholder="https://docs.google.com/spreadsheets/d/…/pub?output=csv" />
+    </div>
+    <div class="hint">
+      In your sheet: <strong>File → Share → Publish to web</strong>, pick your sheet tab,
+      choose <strong>CSV</strong>, click Publish, and paste the link above.<br><br>
+      Row 1 is treated as a header. <strong>Column A</strong> = English prompt,
+      <strong>Column B</strong> = target language answer.
+    </div>
+    <div id="error-msg" class="error"></div>
+    <button class="btn-primary" id="load-btn">Load deck</button>
+  </div>
+
+  <!-- Study -->
+  <div id="study">
+    <div class="meta-row">
+      <span id="card-counter">Card 1</span>
+      <span id="deck-count"></span>
+    </div>
+
+    <div class="card">
+      <span class="card-tag">English</span>
+      <div id="prompt"></div>
+      <div class="divider" id="divider"></div>
+      <div id="answer"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-reveal" id="reveal-btn">Reveal answer</button>
+      <button class="btn-got" id="got-btn">Got it ✓</button>
+      <button class="btn-miss" id="miss-btn">Missed it ✗</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Seen</div><div class="stat-num" id="s-seen">0</div></div>
+      <div class="stat"><div class="stat-label">Got it</div><div class="stat-num" id="s-got">0</div></div>
+      <div class="stat"><div class="stat-label">Missed</div><div class="stat-num" id="s-miss">0</div></div>
+    </div>
+
+    <div class="footer-row">
+      <button class="btn-link" id="reset-btn">← load different sheet</button>
+      <span class="keyboard-hint"><kbd>Space</kbd> reveal &nbsp; <kbd>G</kbd> got it &nbsp; <kbd>M</kbd> missed</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const $id = id => document.getElementById(id);
+
+let cards = [], weights = [], currentIdx = null;
+let totalSeen = 0, totalGot = 0, totalMiss = 0;
+let revealed = false;
+
+// Restore saved URL
+const savedUrl = localStorage.getItem('fc_sheet_url');
+if (savedUrl) $id('url-input').value = savedUrl;
+
+function weightedRandom() {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * sum;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return i;
+  }
+  return weights.length - 1;
+}
+
+function showCard() {
+  revealed = false;
+  currentIdx = weightedRandom();
+  $id('prompt').textContent = cards[currentIdx].prompt;
+  $id('answer').style.display = 'none';
+  $id('answer').textContent = cards[currentIdx].answer;
+  $id('divider').style.display = 'none';
+  $id('reveal-btn').style.display = '';
+  $id('got-btn').style.display = 'none';
+  $id('miss-btn').style.display = 'none';
+  $id('card-counter').textContent = 'Card ' + (totalSeen + 1);
+}
+
+function revealAnswer() {
+  if (revealed) return;
+  revealed = true;
+  $id('answer').style.display = 'block';
+  $id('divider').style.display = 'block';
+  $id('reveal-btn').style.display = 'none';
+  $id('got-btn').style.display = '';
+  $id('miss-btn').style.display = '';
+}
+
+function grade(correct) {
+  totalSeen++;
+  if (correct) {
+    totalGot++;
+    weights[currentIdx] = Math.max(0.5, weights[currentIdx] * 0.6);
+  } else {
+    totalMiss++;
+    weights[currentIdx] = weights[currentIdx] * 2.5;
+  }
+  $id('s-seen').textContent = totalSeen;
+  $id('s-got').textContent = totalGot;
+  $id('s-miss').textContent = totalMiss;
+  showCard();
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const result = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = [];
+    let inQ = false, cur = '';
+    const line = lines[i];
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    cols.push(cur.trim());
+    const p = cols[0] ? cols[0].replace(/^"|"$/g, '') : '';
+    const a = cols[1] ? cols[1].replace(/^"|"$/g, '') : '';
+    if (p && a) result.push({ prompt: p, answer: a });
+  }
+  return result;
+}
+
+function showError(msg) {
+  const el = $id('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+$id('load-btn').addEventListener('click', async () => {
+  const url = $id('url-input').value.trim();
+  $id('error-msg').style.display = 'none';
+  if (!url) { showError('Please paste a CSV URL.'); return; }
+  $id('load-btn').disabled = true;
+  $id('load-btn').textContent = 'Loading…';
+  try {
+    const res = await fetch('/csv?url=' + encodeURIComponent(url));
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' — check the URL and make sure the sheet is published.');
+    const text = await res.text();
+    cards = parseCSV(text);
+    if (cards.length === 0) throw new Error('No card rows found. Row 1 is the header; make sure columns A and B have data from row 2 onward.');
+    weights = cards.map(() => 1);
+    totalSeen = totalGot = totalMiss = 0;
+    localStorage.setItem('fc_sheet_url', url);
+    $id('deck-count').textContent = cards.length + ' cards';
+    $id('setup').style.display = 'none';
+    $id('study').style.display = 'flex';
+    showCard();
+  } catch(e) {
+    showError(e.message || 'Could not load the sheet. Check the URL.');
+    $id('load-btn').disabled = false;
+    $id('load-btn').textContent = 'Load deck';
+  }
+});
+
+$id('reveal-btn').addEventListener('click', revealAnswer);
+$id('got-btn').addEventListener('click', () => grade(true));
+$id('miss-btn').addEventListener('click', () => grade(false));
+$id('reset-btn').addEventListener('click', () => {
+  cards = []; weights = [];
+  totalSeen = totalGot = totalMiss = 0;
+  $id('s-seen').textContent = $id('s-got').textContent = $id('s-miss').textContent = '0';
+  $id('study').style.display = 'none';
+  $id('setup').style.display = 'flex';
+  $id('load-btn').disabled = false;
+  $id('load-btn').textContent = 'Load deck';
+});
+
+document.addEventListener('keydown', e => {
+  if ($id('study').style.display === 'none') return;
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); revealAnswer(); }
+  else if ((e.key === 'g' || e.key === 'G') && revealed) grade(true);
+  else if ((e.key === 'm' || e.key === 'M') && revealed) grade(false);
+});
+</script>
+</body>
+</html>
