@@ -499,6 +499,12 @@ async function loadDeck(raw) {
 }
 
 $id('load-btn').addEventListener('click', () => loadDeck($id('url-input').value));
+$id('url-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    loadDeck($id('url-input').value);
+  }
+});
 
 if (urlParam) loadDeck(urlParam);
 
