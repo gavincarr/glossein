@@ -308,14 +308,29 @@ function grade(correct) {
   showCard();
 }
 
-function parseSheetJSON(data) {
-  const entries = data.feed.entry || [];
-  return entries.map(entry => {
-    const keys = Object.keys(entry).filter(k => k.startsWith('gsx$'));
-    const prompt = keys[0] && entry[keys[0]].$t ? entry[keys[0]].$t.trim() : '';
-    const answer = keys[1] && entry[keys[1]].$t ? entry[keys[1]].$t.trim() : '';
-    return { prompt, answer };
-  }).filter(c => c.prompt && c.answer);
+function parseCSV(text) {
+  const rows = [];
+  let field = '', row = [], inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i+1] === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else if (c === '"') { inQuotes = true; }
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); field = ''; row = []; }
+    else if (c !== '\r') { field += c; }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function parseCSVCards(text) {
+  return parseCSV(text).slice(1).map(r => ({
+    prompt: (r[0] || '').trim(),
+    answer: (r[1] || '').trim(),
+  })).filter(c => c.prompt && c.answer);
 }
 
 function showError(msg) {
@@ -335,16 +350,16 @@ $id('load-btn').addEventListener('click', async () => {
   $id('load-btn').disabled = true;
   $id('load-btn').textContent = 'Loading…';
 
-  const jsonUrl = `https://spreadsheets.google.com/feeds/list/${sheetId}/1/public/values?alt=json`;
-  const proxyUrl = `/csv?url=${encodeURIComponent(jsonUrl)}`;
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+  const proxyUrl = `/csv?url=${encodeURIComponent(csvUrl)}`;
   try {
     const res = await fetch(proxyUrl);
     if (res.status === 401 || res.status === 403) {
       throw new Error('Sheet is not public. Go to Share → Anyone with the link → Viewer, then try again.');
     }
     if (!res.ok) throw new Error('HTTP ' + res.status + ' — could not fetch sheet data.');
-    const data = await res.json();
-    cards = parseSheetJSON(data);
+    const text = await res.text();
+    cards = parseCSVCards(text);
     if (cards.length === 0) {
       throw new Error('No card rows found. Check that columns A and B have data from row 2 onward, and that row 1 is a header row.');
     }
