@@ -56,6 +56,8 @@
     margin-top: -1.25rem;
     margin-bottom: 2rem;
   }
+  .deck-subtitle a { color: inherit; text-decoration: none; }
+  .deck-subtitle a:hover { text-decoration: underline; }
 
   #setup { display: flex; flex-direction: column; gap: 1.25rem; }
 
@@ -213,7 +215,7 @@
 <body>
 <div class="app">
   <p class="wordmark">Glossein Flashcards</p>
-  <p class="deck-subtitle" id="deck-subtitle"></p>
+  <p class="deck-subtitle" id="deck-subtitle"><a id="deck-subtitle-link" target="_blank" rel="noopener"></a></p>
 
   <div id="setup">
     <div>
@@ -403,6 +405,20 @@ function renderDeckList(containerId, excludeId) {
 
 renderDeckList('setup-recent-decks', null);
 
+function showDeckSubtitle(sheetId, title) {
+  const link = $id('deck-subtitle-link');
+  link.textContent = title;
+  link.href = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+  $id('deck-subtitle').style.display = 'block';
+}
+
+function hideDeckSubtitle() {
+  $id('deck-subtitle').style.display = 'none';
+  const link = $id('deck-subtitle-link');
+  link.textContent = '';
+  link.removeAttribute('href');
+}
+
 async function fetchDeckTitle(sheetId) {
   try {
     const editUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
@@ -435,8 +451,7 @@ async function loadDeck(raw) {
   $id('url-input').value = raw;
   $id('load-btn').disabled = true;
   $id('load-btn').textContent = 'Loading…';
-  $id('deck-subtitle').style.display = 'none';
-  $id('deck-subtitle').textContent = '';
+  hideDeckSubtitle();
 
   const cached = loadDeckCache().find(e => e.id === sheetId);
   const cachedTitle = cached?.title || null;
@@ -469,8 +484,7 @@ async function loadDeck(raw) {
     titlePromise.then(title => {
       if (currentDeckId !== sheetId) return;
       if (title) {
-        $id('deck-subtitle').textContent = title;
-        $id('deck-subtitle').style.display = 'block';
+        showDeckSubtitle(sheetId, title);
         if (title !== cachedTitle) {
           rememberDeck(sheetId, raw, title);
           renderDeckList('recent-decks', sheetId);
@@ -498,8 +512,7 @@ $id('reset-btn').addEventListener('click', () => {
   ['s-seen','s-got','s-miss'].forEach(id => $id(id).textContent = '0');
   $id('study').style.display = 'none';
   $id('setup').style.display = 'flex';
-  $id('deck-subtitle').style.display = 'none';
-  $id('deck-subtitle').textContent = '';
+  hideDeckSubtitle();
   $id('load-btn').disabled = false;
   $id('load-btn').textContent = 'Load deck';
   renderDeckList('setup-recent-decks', null);
