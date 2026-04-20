@@ -226,6 +226,7 @@
     </div>
     <div id="error-msg" class="error"></div>
     <button class="btn-primary" id="load-btn">Load deck</button>
+    <div class="footer-links" id="setup-recent-decks"></div>
   </div>
 
   <div id="study">
@@ -298,9 +299,7 @@ if (legacyUrl) {
 }
 
 const urlParam = new URLSearchParams(window.location.search).get('url');
-const cachedDecks = loadDeckCache();
 if (urlParam) $id('url-input').value = urlParam;
-else if (cachedDecks[0]) $id('url-input').value = cachedDecks[0].url;
 
 function extractSheetId(input) {
   input = input.trim();
@@ -383,11 +382,11 @@ function parseCSVCards(text) {
   })).filter(c => c.prompt && c.answer);
 }
 
-function renderRecentDecks(currentId) {
-  const container = $id('recent-decks');
+function renderDeckList(containerId, excludeId) {
+  const container = $id(containerId);
   container.innerHTML = '';
-  const others = loadDeckCache().filter(e => e.id !== currentId && e.title);
-  for (const entry of others) {
+  const entries = loadDeckCache().filter(e => e.title && (excludeId == null || e.id !== excludeId));
+  for (const entry of entries) {
     const btn = document.createElement('button');
     btn.className = 'btn-link';
     btn.textContent = '↻ ' + entry.title;
@@ -395,6 +394,8 @@ function renderRecentDecks(currentId) {
     container.appendChild(btn);
   }
 }
+
+renderDeckList('setup-recent-decks', null);
 
 async function fetchDeckTitle(sheetId) {
   try {
@@ -454,7 +455,7 @@ async function loadDeck(raw) {
     totalSeen = totalGot = totalMiss = 0;
     ['s-seen','s-got','s-miss'].forEach(id => $id(id).textContent = '0');
     rememberDeck(sheetId, raw, cachedTitle);
-    renderRecentDecks(sheetId);
+    renderDeckList('recent-decks', sheetId);
     $id('deck-count').textContent = cards.length + ' cards';
     $id('setup').style.display = 'none';
     $id('study').style.display = 'flex';
@@ -466,7 +467,7 @@ async function loadDeck(raw) {
         $id('deck-subtitle').style.display = 'block';
         if (title !== cachedTitle) {
           rememberDeck(sheetId, raw, title);
-          renderRecentDecks(sheetId);
+          renderDeckList('recent-decks', sheetId);
         }
       }
     });
@@ -495,6 +496,7 @@ $id('reset-btn').addEventListener('click', () => {
   $id('deck-subtitle').textContent = '';
   $id('load-btn').disabled = false;
   $id('load-btn').textContent = 'Load deck';
+  renderDeckList('setup-recent-decks', null);
 });
 
 document.addEventListener('keydown', e => {
