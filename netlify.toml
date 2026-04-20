@@ -1,0 +1,8 @@
+[build]
+  publish = "cmd/active_recall_app"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/csv"
+  to = "/.netlify/functions/csv"
+  status = 200

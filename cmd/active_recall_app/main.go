@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//go:embed flashcards.html
+//go:embed index.html
 var flashcardsHTML []byte
 
 func main() {
@@ -47,8 +47,16 @@ func handleCSV(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid url", http.StatusBadRequest)
 		return
 	}
-	if !strings.HasSuffix(u.Host, "docs.google.com") && !strings.HasSuffix(u.Host, "googleusercontent.com") {
-		http.Error(w, "only docs.google.com / googleusercontent.com URLs are allowed", http.StatusBadRequest)
+	allowed := []string{"docs.google.com", "spreadsheets.google.com", "googleusercontent.com"}
+	ok := false
+	for _, h := range allowed {
+		if u.Host == h || strings.HasSuffix(u.Host, "."+h) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		http.Error(w, "host not allowed", http.StatusBadRequest)
 		return
 	}
 	resp, err := http.Get(raw)
