@@ -224,7 +224,7 @@
     </div>
     <div class="hint">
       Paste your full Google Sheets URL, or just the sheet ID (the long string between <code>/d/</code> and <code>/edit</code>).<br><br>
-      The sheet must be shared publicly: <strong>Share → Share with others → Anyone with the link → Viewer</strong>. You do <em>not</em> need to use "Publish to web."<br><br>
+      The sheet must be shared publicly: <strong>Share → Anyone with the link → Viewer</strong>. You do <em>not</em> need to use "Publish to web."<br><br>
       Row 1 is treated as a header. <strong>Column A</strong> = English prompt, <strong>Column B</strong> = target language answer.
     </div>
     <div id="error-msg" class="error"></div>
@@ -469,7 +469,7 @@ async function loadDeck(raw) {
   try {
     const res = await fetch(proxyUrl);
     if (res.status === 401 || res.status === 403) {
-      throw new Error('Sheet is not public. Go to Share → Share with others → Anyone with the link → Viewer, then try again.');
+      throw new Error('Sheet is not public. Go to Share → Anyone with the link → Viewer, then try again.');
     }
     if (!res.ok) throw new Error('HTTP ' + res.status + ' — could not fetch sheet data.');
     const text = await res.text();
