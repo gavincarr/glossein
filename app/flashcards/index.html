@@ -324,7 +324,12 @@ function weightedRandom() {
 
 function showCard() {
   revealed = false;
-  currentIdx = weightedRandom();
+  const prevIdx = currentIdx;
+  let next = weightedRandom();
+  for (let i = 0; i < 8 && cards.length > 1 && next === prevIdx; i++) {
+    next = weightedRandom();
+  }
+  currentIdx = next;
   $id('prompt').textContent = cards[currentIdx].prompt;
   $id('answer').style.display = 'none';
   $id('answer').textContent = cards[currentIdx].answer;
