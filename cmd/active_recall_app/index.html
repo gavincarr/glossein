@@ -208,7 +208,7 @@
     </div>
     <div class="hint">
       Paste your full Google Sheets URL, or just the sheet ID (the long string between <code>/d/</code> and <code>/edit</code>).<br><br>
-      The sheet must be shared publicly: <strong>Share → Anyone with the link → Viewer</strong>. You do <em>not</em> need to use "Publish to web."<br><br>
+      The sheet must be shared publicly: <strong>Share → Share with others → Anyone with the link → Viewer</strong>. You do <em>not</em> need to use "Publish to web."<br><br>
       Row 1 is treated as a header. <strong>Column A</strong> = English prompt, <strong>Column B</strong> = target language answer.
     </div>
     <div id="error-msg" class="error"></div>
@@ -249,8 +249,10 @@ let cards = [], weights = [], currentIdx = null;
 let totalSeen = 0, totalGot = 0, totalMiss = 0;
 let revealed = false;
 
+const urlParam = new URLSearchParams(window.location.search).get('url');
 const savedUrl = localStorage.getItem('fc_sheet_url');
-if (savedUrl) $id('url-input').value = savedUrl;
+if (urlParam) $id('url-input').value = urlParam;
+else if (savedUrl) $id('url-input').value = savedUrl;
 
 function extractSheetId(input) {
   input = input.trim();
@@ -339,9 +341,8 @@ function showError(msg) {
   el.style.display = 'block';
 }
 
-$id('load-btn').addEventListener('click', async () => {
+async function loadDeck(raw) {
   $id('error-msg').style.display = 'none';
-  const raw = $id('url-input').value;
   const sheetId = extractSheetId(raw);
   if (!sheetId) {
     showError('Could not find a sheet ID. Paste the full Google Sheets URL or just the ID between /d/ and /edit.');
@@ -355,7 +356,7 @@ $id('load-btn').addEventListener('click', async () => {
   try {
     const res = await fetch(proxyUrl);
     if (res.status === 401 || res.status === 403) {
-      throw new Error('Sheet is not public. Go to Share → Anyone with the link → Viewer, then try again.');
+      throw new Error('Sheet is not public. Go to Share → Share with others → Anyone with the link → Viewer, then try again.');
     }
     if (!res.ok) throw new Error('HTTP ' + res.status + ' — could not fetch sheet data.');
     const text = await res.text();
@@ -375,7 +376,11 @@ $id('load-btn').addEventListener('click', async () => {
     $id('load-btn').disabled = false;
     $id('load-btn').textContent = 'Load deck';
   }
-});
+}
+
+$id('load-btn').addEventListener('click', () => loadDeck($id('url-input').value));
+
+if (urlParam) loadDeck(urlParam);
 
 $id('reveal-btn').addEventListener('click', revealAnswer);
 $id('got-btn').addEventListener('click', () => grade(true));
