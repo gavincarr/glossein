@@ -46,6 +46,17 @@
     text-align: center;
   }
 
+  .deck-subtitle {
+    display: none;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    color: var(--text);
+    text-align: center;
+    margin-top: -1.25rem;
+    margin-bottom: 2rem;
+  }
+
   #setup { display: flex; flex-direction: column; gap: 1.25rem; }
 
   .field-label {
@@ -200,6 +211,7 @@
 <body>
 <div class="app">
   <p class="wordmark">Glossein Flashcards</p>
+  <p class="deck-subtitle" id="deck-subtitle"></p>
 
   <div id="setup">
     <div>
@@ -335,6 +347,21 @@ function parseCSVCards(text) {
   })).filter(c => c.prompt && c.answer);
 }
 
+async function fetchDeckTitle(sheetId) {
+  try {
+    const editUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+    const res = await fetch(`/csv?url=${encodeURIComponent(editUrl)}`);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m = html.match(/<title>([^<]*)<\/title>/i);
+    if (!m) return null;
+    const title = m[1].replace(/\s*-\s*Google\s+Sheets?\s*$/i, '').trim();
+    return title || null;
+  } catch {
+    return null;
+  }
+}
+
 function showError(msg) {
   const el = $id('error-msg');
   el.textContent = msg;
@@ -353,6 +380,7 @@ async function loadDeck(raw) {
 
   const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
   const proxyUrl = `/csv?url=${encodeURIComponent(csvUrl)}`;
+  const titlePromise = fetchDeckTitle(sheetId);
   try {
     const res = await fetch(proxyUrl);
     if (res.status === 401 || res.status === 403) {
@@ -371,6 +399,12 @@ async function loadDeck(raw) {
     $id('setup').style.display = 'none';
     $id('study').style.display = 'flex';
     showCard();
+    titlePromise.then(title => {
+      if (title) {
+        $id('deck-subtitle').textContent = title;
+        $id('deck-subtitle').style.display = 'block';
+      }
+    });
   } catch(e) {
     showError(e.message || 'Could not load the sheet.');
     $id('load-btn').disabled = false;
@@ -391,6 +425,8 @@ $id('reset-btn').addEventListener('click', () => {
   ['s-seen','s-got','s-miss'].forEach(id => $id(id).textContent = '0');
   $id('study').style.display = 'none';
   $id('setup').style.display = 'flex';
+  $id('deck-subtitle').style.display = 'none';
+  $id('deck-subtitle').textContent = '';
   $id('load-btn').disabled = false;
   $id('load-btn').textContent = 'Load deck';
 });
