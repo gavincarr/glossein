@@ -1,5 +1,5 @@
 [build]
-  publish = "cmd/active_recall_app"
+  publish = "app/flashcards"
   functions = "netlify/functions"
 
 [[redirects]]
