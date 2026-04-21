@@ -1,9 +1,28 @@
 # glossein
 
-Personal language-learning tools built around the idea that a two-column
-Google Sheet (native language / target language) is the right unit of
-vocabulary content — easy to edit, easy to share, easy to version. The
-same sheet can drive multiple study modes.
+Personal language-learning tools built around the idea that a simple
+two-column Google Sheet (native language / target language) is a great
+unit for vocabulary content — easy to edit, easy to share, easy to
+version. The same sheet can drive multiple study modes.
+
+## Sheet format
+
+All tools expect:
+
+- A two-column Google Sheet shared as **Share → Anyone with the link → Viewer**.
+
+- Row 1 is a header. For flashcards it's skipped; for sheetcast it's
+  used (optionally) to auto-select a TTS voice if the header title is
+  a language code (e.g. "EN", "IT", "FR", "CN", etc.)
+
+- Column A is the prompt / source language; Column B is the answer /
+  target language. sheetcast defaults to reading column B and can be
+  pointed elsewhere via `--column`.
+
+A template sheet is available:
+[Glossein Template](https://docs.google.com/spreadsheets/d/12TWGqpozKTFMBuqE96bUbZIYDtL__VeEOVK87NEERLE/edit?usp=sharing).
+Use **File > Make a copy** and then customise for personal use
+(remembering to reshare the copy so the tools can read it).
 
 ## Tools
 
@@ -15,7 +34,7 @@ random flashcard trainer. Cards you miss come back more often; cards
 you get right fade out. Recent decks and per-deck state are kept in
 browser `localStorage`.
 
-Or you can run locally/privately (it's a small Go server wrapping embedded HTML):
+Or you can run locally (it's a small Go server wrapping embedded HTML):
 
 ```
 go run ./app/flashcards -port 8080
@@ -26,8 +45,8 @@ go run ./app/flashcards -port 8080
 A Go CLI that takes the same sheet URLs and produces a single audio
 file — all target-language sentences synthesised via Google Cloud TTS
 and concatenated with configurable silence between them. Good for
-passive listening on a commute, shadowing, or drilling recall with
-longer gaps.
+passive listening on a commute, shadowing, or drilling active recall
+with longer gaps.
 
 Install or build:
 
@@ -80,17 +99,6 @@ Then run it:
 The voice is auto-detected from the column header — a cell like `IT`
 in row 1 selects `it-IT-Neural2-A`; `--voice` overrides it. See
 `./sheetcast --help` for the full flag set.
-
-## Sheet format
-
-Both tools expect:
-
-- The sheet is shared as **Share → Anyone with the link → Viewer**.
-- Row 1 is a header. For flashcards it's skipped; for sheetcast it's
-  used (optionally) to auto-select a TTS voice by language code.
-- Column A is the prompt / source language; Column B is the answer /
-  target language. sheetcast defaults to reading column B and can be
-  pointed elsewhere via `--column`.
 
 ## Repo layout
 
