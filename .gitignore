@@ -13,8 +13,10 @@
 /data/*
 /delta/applied/*
 /dist/*
+/flashcards
 /go.work*
 /node_modules/*
+/sheetcast
 /pkg/linux_amd64/*
 /pkg/*.*/
 /src/*.*/
