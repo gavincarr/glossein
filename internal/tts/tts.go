@@ -14,6 +14,7 @@ import (
 
 	texttospeech "cloud.google.com/go/texttospeech/apiv1"
 	"cloud.google.com/go/texttospeech/apiv1/texttospeechpb"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,12 +28,18 @@ type Client struct {
 
 // New creates a Client for the given voice (e.g. "en-US-Neural2-D") and sample
 // rate. If lang is empty, the language code is inferred from the voice name
-// ("en-US-Neural2-D" → "en-US"). Uses Application Default Credentials.
-func New(ctx context.Context, voice, lang string, sampleRate int) (*Client, error) {
+// ("en-US-Neural2-D" → "en-US"). If project is non-empty, it's used as the
+// billing/quota project (overrides any value in ADC). Uses Application Default
+// Credentials.
+func New(ctx context.Context, voice, lang, project string, sampleRate int) (*Client, error) {
 	if lang == "" {
 		lang = LanguageFromVoice(voice)
 	}
-	raw, err := texttospeech.NewClient(ctx)
+	var clientOpts []option.ClientOption
+	if project != "" {
+		clientOpts = append(clientOpts, option.WithQuotaProject(project))
+	}
+	raw, err := texttospeech.NewClient(ctx, clientOpts...)
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "could not find default credentials") || strings.Contains(msg, "google: could not find") {

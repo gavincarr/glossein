@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	flags "github.com/jessevdk/go-flags"
+	"github.com/lmittmann/tint"
 
 	"github.com/gavincarr/glossein/internal/audio"
 	"github.com/gavincarr/glossein/internal/sheets"
@@ -33,6 +35,7 @@ type options struct {
 	NoSkipHeader bool          `long:"no-skip-header" description:"treat row 1 as data (default: row 1 is treated as header)"`
 	Voice        string        `long:"voice" value-name:"NAME" description:"Google TTS voice (default: derived from a 2-letter language code in the column header, else en-US-Neural2-D)"`
 	Lang         string        `long:"lang" value-name:"CODE" description:"language code override (default: inferred from voice)"`
+	Project      string        `long:"project" env:"GOOGLE_CLOUD_PROJECT" value-name:"ID" description:"GCP project for billing/quota (overrides ADC quota-project setting)"`
 	Rate         int           `long:"rate" default:"24000" value-name:"HZ" description:"sample rate in Hz"`
 	Mode         string        `long:"mode" short:"m" default:"listen" choice:"listen" choice:"shadow" choice:"drill" description:"gap mode"`
 	Gap          time.Duration `long:"gap" value-name:"DURATION" description:"override preset inter-sentence silence (e.g. 2.5s)"`
@@ -43,14 +46,32 @@ type options struct {
 	KeepWAV      bool          `long:"keep-wav" description:"with --mp3, keep the intermediate WAV"`
 	Concurrency  int           `long:"concurrency" default:"4" value-name:"N" description:"parallel TTS requests (1..16)"`
 	DryRun       bool          `long:"dry-run" description:"print the sentences that would be synthesised and exit"`
-	Verbose      bool          `long:"verbose" short:"v" description:"progress to stderr"`
+	Verbose      []bool        `long:"verbose" short:"v" description:"verbose output to stderr (-v: info, -vv: debug)"`
 }
 
 func main() {
+	setupLogger(slog.LevelWarn)
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "sheetcast: "+err.Error())
+		slog.Error(err.Error())
 		os.Exit(1)
 	}
+}
+
+func setupLogger(level slog.Level) {
+	slog.SetDefault(slog.New(tint.NewHandler(os.Stderr, &tint.Options{
+		Level:      level,
+		TimeFormat: "15:04:05",
+	})))
+}
+
+func logLevel(opts options) slog.Level {
+	switch {
+	case len(opts.Verbose) >= 2:
+		return slog.LevelDebug
+	case len(opts.Verbose) == 1 || opts.DryRun:
+		return slog.LevelInfo
+	}
+	return slog.LevelWarn
 }
 
 func run() error {
@@ -75,6 +96,8 @@ func run() error {
 	}
 	input := args[0]
 
+	setupLogger(logLevel(opts))
+
 	if opts.Concurrency < 1 || opts.Concurrency > maxConcurrency {
 		return fmt.Errorf("--concurrency must be between 1 and %d, got %d", maxConcurrency, opts.Concurrency)
 	}
@@ -95,9 +118,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if opts.Verbose {
-		fmt.Fprintf(os.Stderr, "Fetching sheet %s\n", id)
-	}
+	slog.Debug("fetching sheet", "id", id)
 	csv, err := sheets.FetchCSV(ctx, id)
 	if err != nil {
 		return err
@@ -114,13 +135,11 @@ func run() error {
 	}
 
 	voice, voiceSource := resolveVoice(opts, csv)
-	if voiceSource != "" && (opts.Verbose || opts.DryRun) {
-		fmt.Fprintf(os.Stderr, "Voice %s (%s)\n", voice, voiceSource)
+	if voiceSource != "" {
+		slog.Info("voice resolved", "voice", voice, "source", voiceSource)
 	}
 
-	if opts.Verbose || opts.DryRun {
-		fmt.Fprintf(os.Stderr, "%d sentence(s) in column %s\n", len(sentences), opts.Column)
-	}
+	slog.Info("sentences parsed", "count", len(sentences), "column", opts.Column)
 	if opts.DryRun {
 		for i, s := range sentences {
 			fmt.Printf("%3d  %s\n", i+1, s)
@@ -136,13 +155,16 @@ func run() error {
 		}
 	}
 
-	client, err := tts.New(ctx, voice, opts.Lang, opts.Rate)
+	if opts.Project != "" {
+		slog.Debug("gcp quota project", "project", opts.Project)
+	}
+	client, err := tts.New(ctx, voice, opts.Lang, opts.Project, opts.Rate)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
-	clips, err := synthesizeAll(ctx, client, sentences, opts.Concurrency, opts.Verbose)
+	clips, err := synthesizeAll(ctx, client, sentences, opts.Concurrency)
 	if err != nil {
 		return err
 	}
@@ -163,20 +185,16 @@ func run() error {
 	if err := writeWAV(wavPath, format, pcmChunks, gap, opts.Lead, opts.Trail); err != nil {
 		return err
 	}
-	if opts.Verbose {
-		fmt.Fprintf(os.Stderr, "Wrote %s\n", wavPath)
-	}
+	slog.Info("wrote", "path", wavPath)
 
 	if opts.MP3 {
 		if err := audio.EncodeMP3(ctx, wavPath, mp3Path); err != nil {
 			return err
 		}
-		if opts.Verbose {
-			fmt.Fprintf(os.Stderr, "Wrote %s\n", mp3Path)
-		}
+		slog.Info("wrote", "path", mp3Path)
 		if !opts.KeepWAV {
 			if err := os.Remove(wavPath); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: could not remove intermediate WAV: %v\n", err)
+				slog.Warn("could not remove intermediate WAV", "path", wavPath, "err", err)
 			}
 		}
 		fmt.Println(mp3Path)
@@ -241,7 +259,7 @@ func resolveOutputPaths(out string, mp3 bool) (wavPath, mp3Path string) {
 	return base + ".wav", base + ".mp3"
 }
 
-func synthesizeAll(ctx context.Context, client *tts.Client, sentences []string, concurrency int, verbose bool) ([][]byte, error) {
+func synthesizeAll(ctx context.Context, client *tts.Client, sentences []string, concurrency int) ([][]byte, error) {
 	results := make([][]byte, len(sentences))
 	sem := make(chan struct{}, concurrency)
 
@@ -279,17 +297,15 @@ func synthesizeAll(ctx context.Context, client *tts.Client, sentences []string, 
 				return
 			}
 			results[idx] = wav
-			if verbose {
-				doneMu.Lock()
-				done++
-				n := done
-				doneMu.Unlock()
-				preview := text
-				if len(preview) > 50 {
-					preview = preview[:50] + "…"
-				}
-				fmt.Fprintf(os.Stderr, "[%d/%d] %s\n", n, len(sentences), preview)
+			doneMu.Lock()
+			done++
+			n := done
+			doneMu.Unlock()
+			preview := text
+			if len(preview) > 50 {
+				preview = preview[:50] + "…"
 			}
+			slog.Debug("synthesised", "n", n, "total", len(sentences), "text", preview)
 		}(i, s)
 	}
 	wg.Wait()

@@ -3,6 +3,7 @@
 *~
 
 /.claude/settings.local.json
+/.credentials.json
 /.env.*local
 /.envrc
 /.netrc

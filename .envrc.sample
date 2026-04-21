@@ -6,3 +6,6 @@
 source_env .envrc.local
 
 # Custom/sensitive env values go here
+# export GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+# export GOOGLE_CLOUD_PROJECT=glossein
+
