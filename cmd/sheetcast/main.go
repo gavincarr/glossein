@@ -39,7 +39,7 @@ type options struct {
 	Rate         int           `long:"rate" default:"24000" value-name:"HZ" description:"sample rate in Hz"`
 	Mode         string        `long:"mode" short:"m" default:"listen" choice:"listen" choice:"shadow" choice:"drill" description:"gap mode"`
 	Gap          time.Duration `long:"gap" value-name:"DURATION" description:"override preset inter-sentence silence (e.g. 2.5s)"`
-	Lead         time.Duration `long:"lead" default:"500ms" value-name:"DURATION" description:"silence before first sentence"`
+	Lead         time.Duration `long:"lead" default:"100ms" value-name:"DURATION" description:"silence before first sentence"`
 	Trail        time.Duration `long:"trail" default:"1s" value-name:"DURATION" description:"silence after last sentence"`
 	Out          string        `long:"out" short:"o" default:"sheetcast.wav" value-name:"PATH" description:"output path (extension adjusted for --mp3)"`
 	MP3          bool          `long:"mp3" description:"encode final output as MP3 via ffmpeg"`
