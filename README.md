@@ -7,7 +7,7 @@ version. The same sheet can drive multiple study modes.
 
 ## Sheet format
 
-All tools expect:
+The tools expect:
 
 - A two-column Google Sheet shared as **Share → Anyone with the link → Viewer**.
 
@@ -29,9 +29,9 @@ Use **File > Make a copy** and then customise for personal use
 ### flashcards
 
 A static web app, deployed at **https://glossein.netlify.app**, that
-takes a publicly-shared Google Sheets URL and turns it into a weighted-
-random flashcard trainer. Cards you miss come back more often; cards
-you get right fade out. Recent decks and per-deck state are kept in
+takes your publicly-shared Google Sheets URL and turns it into a
+weighted-random flashcard trainer. Cards you miss come back more often;
+cards you get right fade out. Recent decks and per-deck state are kept in
 browser `localStorage`.
 
 Or you can run locally (it's a small Go server wrapping embedded HTML):
