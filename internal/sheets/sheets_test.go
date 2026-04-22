@@ -184,6 +184,23 @@ func TestLetterToIndex(t *testing.T) {
 	}
 }
 
+func TestParseTitle(t *testing.T) {
+	cases := map[string]string{
+		`<html><head><title>Glossein Template - Google Drive</title></head></html>`: "Glossein Template",
+		`<title>Italian 101 - Google Sheets</title>`:                                "Italian 101",
+		`<TITLE>Mixed Case - Google Docs</TITLE>`:                                   "Mixed Case",
+		`<title>  Padded Title - Google Drive  </title>`:                            "Padded Title",
+		`<title>No Suffix Here</title>`:                                             "No Suffix Here",
+		`<title></title>`: "",
+		`no title tag at all`: "",
+	}
+	for in, want := range cases {
+		if got := parseTitle([]byte(in)); got != want {
+			t.Errorf("parseTitle(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestInterpretCSVResponse(t *testing.T) {
 	cases := []struct {
 		name        string

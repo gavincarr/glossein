@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +47,123 @@ func TestResolveVoice(t *testing.T) {
 				if !strings.Contains(source, tc.wantSource) {
 					t.Errorf("source = %q, want to contain %q", source, tc.wantSource)
 				}
+			}
+		})
+	}
+}
+
+func TestSlugify(t *testing.T) {
+	cases := map[string]string{
+		"Glossein Template":         "Glossein_Template",
+		"  leading/trailing  ":      "leading_trailing",
+		"punct!@#$%^&*()_+":         "punct",
+		"multiple   spaces":         "multiple_spaces",
+		"dashes-and_underscores":    "dashes_and_underscores",
+		"Café italiano":             "Café_italiano",
+		"":                          "",
+		"!!!":                       "",
+		"Italian 101 - Beginner":    "Italian_101_Beginner",
+		"already_good_name":         "already_good_name",
+	}
+	for in, want := range cases {
+		if got := slugify(in); got != want {
+			t.Errorf("slugify(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestResolveOutputBase(t *testing.T) {
+	const title = "Glossein Template"
+	slugJoin := func(dir string) string {
+		return filepath.Join(dir, "Glossein_Template.wav")
+	}
+
+	cases := []struct {
+		name     string
+		cfg      outputConfig
+		title    string
+		titleErr error
+		want     string
+		wantErr  bool
+	}{
+		{
+			name: "no --out, no --output-dir, env set: env wins",
+			cfg:   outputConfig{outputDirEnv: "/env/dir"},
+			title: title,
+			want:  slugJoin("/env/dir"),
+		},
+		{
+			name: "no --out, no --output-dir, no env, ./data exists",
+			cfg:   outputConfig{dataDirExists: true},
+			title: title,
+			want:  slugJoin("data"),
+		},
+		{
+			name: "no --out, no --output-dir, no env, no ./data: /tmp",
+			cfg:   outputConfig{},
+			title: title,
+			want:  slugJoin("/tmp"),
+		},
+		{
+			name:  "--output-dir CLI wins over env",
+			cfg:   outputConfig{outputDir: "/cli/dir", outputDirEnv: "/env/dir"},
+			title: title,
+			want:  slugJoin("/cli/dir"),
+		},
+		{
+			name: "--out bare filename joined with --output-dir",
+			cfg:  outputConfig{out: "deck.wav", outputDir: "/cli/dir"},
+			want: filepath.Join("/cli/dir", "deck.wav"),
+		},
+		{
+			name: "--out bare filename joined with env dir",
+			cfg:  outputConfig{out: "deck.wav", outputDirEnv: "/env/dir"},
+			want: filepath.Join("/env/dir", "deck.wav"),
+		},
+		{
+			name: "--out with absolute path overrides, no --output-dir",
+			cfg:  outputConfig{out: "/foo/deck.wav"},
+			want: "/foo/deck.wav",
+		},
+		{
+			name: "--out with relative path overrides, no --output-dir",
+			cfg:  outputConfig{out: "foo/deck.wav"},
+			want: "foo/deck.wav",
+		},
+		{
+			name:    "--out with path AND --output-dir CLI: error",
+			cfg:     outputConfig{out: "/foo/deck.wav", outputDir: "/bar"},
+			wantErr: true,
+		},
+		{
+			name: "--out with path AND env dir: no error, --out wins",
+			cfg:  outputConfig{out: "/foo/deck.wav", outputDirEnv: "/env/dir"},
+			want: "/foo/deck.wav",
+		},
+		{
+			name:  "--out empty, title empty: sheetcast fallback",
+			cfg:   outputConfig{outputDir: "/tmp"},
+			title: "",
+			want:  filepath.Join("/tmp", "sheetcast.wav"),
+		},
+		{
+			name:     "--out empty, fetchTitle errors: falls back silently",
+			cfg:      outputConfig{outputDir: "/tmp"},
+			titleErr: errors.New("boom"),
+			want:     filepath.Join("/tmp", "sheetcast.wav"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveOutputBase(tc.cfg, func() (string, error) {
+				return tc.title, tc.titleErr
+			})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if err == nil && got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})
 	}

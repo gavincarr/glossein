@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/lmittmann/tint"
@@ -28,6 +29,10 @@ const (
 	maxConcurrency    = 16
 	maxPlainTextBytes = 5000 // Google TTS plain-text per-request limit
 	defaultVoice      = "en-US-Neural2-D"
+	defaultOutDir     = "data"
+	fallbackOutDir    = "/tmp"
+	fallbackOutBase   = "sheetcast"
+	outputDirEnv      = "SHEETCAST_OUTPUT_DIR"
 )
 
 type options struct {
@@ -41,7 +46,8 @@ type options struct {
 	Gap          time.Duration `long:"gap" value-name:"DURATION" description:"override preset inter-sentence silence (e.g. 2.5s)"`
 	Lead         time.Duration `long:"lead" default:"100ms" value-name:"DURATION" description:"silence before first sentence"`
 	Trail        time.Duration `long:"trail" default:"1s" value-name:"DURATION" description:"silence after last sentence"`
-	Out          string        `long:"out" short:"o" default:"sheetcast.wav" value-name:"PATH" description:"output path (extension adjusted for --mp3)"`
+	OutputDir    string        `long:"output-dir" short:"d" value-name:"DIR" description:"output directory (default: $SHEETCAST_OUTPUT_DIR, else ./data if it exists, else /tmp)"`
+	Out          string        `long:"out" short:"o" value-name:"PATH" description:"output file (default: <slugified-sheet-title>.wav). A bare filename is joined with --output-dir; a path overrides --output-dir."`
 	MP3          bool          `long:"mp3" description:"encode final output as MP3 via ffmpeg"`
 	KeepWAV      bool          `long:"keep-wav" description:"with --mp3, keep the intermediate WAV"`
 	Concurrency  int           `long:"concurrency" default:"4" value-name:"N" description:"parallel TTS requests (1..16)"`
@@ -147,7 +153,20 @@ func run() error {
 		return nil
 	}
 
-	wavPath, mp3Path := resolveOutputPaths(opts.Out, opts.MP3)
+	cfg := outputConfig{
+		out:           opts.Out,
+		outputDir:     opts.OutputDir,
+		outputDirEnv:  os.Getenv(outputDirEnv),
+		dataDirExists: dirExists(defaultOutDir),
+	}
+	base, err := resolveOutputBase(cfg, func() (string, error) {
+		return sheets.FetchTitle(ctx, id)
+	})
+	if err != nil {
+		return err
+	}
+	slog.Debug("output base resolved", "path", base)
+	wavPath, mp3Path := resolveOutputPaths(base, opts.MP3)
 
 	if opts.MP3 {
 		if err := audio.EncodeMP3Preflight(); err != nil {
@@ -245,6 +264,86 @@ func validateSentences(sentences []string) error {
 	return nil
 }
 
+// outputConfig captures all inputs resolveOutputBase needs. Keeping this as
+// a plain struct (rather than reading env/filesystem inside the function) lets
+// tests drive every branch without touching the real environment.
+type outputConfig struct {
+	out           string // --out value (empty if unset)
+	outputDir     string // --output-dir CLI value (empty if unset; env is NOT folded in here)
+	outputDirEnv  string // $SHEETCAST_OUTPUT_DIR (empty if unset)
+	dataDirExists bool   // whether ./data exists
+}
+
+// resolveOutputBase returns the full output path (pre-extension-adjustment)
+// by combining --out, --output-dir, $SHEETCAST_OUTPUT_DIR, and the ./data /
+// /tmp fallbacks. Errors if the user explicitly set both --output-dir and an
+// --out containing a directory — env-supplied --output-dir is never "explicit"
+// so it silently yields to --out.
+//
+// fetchTitle is only invoked when --out is empty (title drives the filename).
+func resolveOutputBase(cfg outputConfig, fetchTitle func() (string, error)) (string, error) {
+	outHasPath := cfg.out != "" && strings.ContainsRune(cfg.out, filepath.Separator)
+
+	if outHasPath && cfg.outputDir != "" {
+		return "", errors.New("cannot specify both --output-dir and an --out that contains a directory path")
+	}
+	if outHasPath {
+		return cfg.out, nil
+	}
+
+	var dir string
+	switch {
+	case cfg.outputDir != "":
+		dir = cfg.outputDir
+	case cfg.outputDirEnv != "":
+		dir = cfg.outputDirEnv
+	case cfg.dataDirExists:
+		dir = defaultOutDir
+	default:
+		dir = fallbackOutDir
+	}
+
+	filename := cfg.out
+	if filename == "" {
+		title, err := fetchTitle()
+		if err != nil {
+			slog.Warn("could not fetch sheet title for default output path", "err", err)
+		}
+		base := slugify(title)
+		if base == "" {
+			base = fallbackOutBase
+		}
+		filename = base + ".wav"
+	}
+	return filepath.Join(dir, filename), nil
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// slugify maps a free-form title to a filename-safe base: Unicode letters
+// and digits are preserved, everything else collapses to underscores, and
+// leading/trailing underscores are trimmed.
+func slugify(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	prevUnderscore := false
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			prevUnderscore = false
+			continue
+		}
+		if !prevUnderscore {
+			b.WriteByte('_')
+			prevUnderscore = true
+		}
+	}
+	return strings.Trim(b.String(), "_")
+}
+
 func resolveOutputPaths(out string, mp3 bool) (wavPath, mp3Path string) {
 	if !mp3 {
 		if filepath.Ext(out) == "" {
@@ -317,6 +416,11 @@ func synthesizeAll(ctx context.Context, client *tts.Client, sentences []string, 
 }
 
 func writeWAV(path string, f audio.Format, chunks [][]byte, gap, lead, trail time.Duration) error {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("creating output directory %q: %w", dir, err)
+		}
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		return err

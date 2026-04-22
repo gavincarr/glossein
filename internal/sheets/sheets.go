@@ -50,6 +50,63 @@ func csvURL(id string) string {
 	return "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv"
 }
 
+// htmlviewURL returns the unauthenticated HTML-view endpoint for a sheet.
+// The response's <title> element contains the spreadsheet name.
+func htmlviewURL(id string) string {
+	return "https://docs.google.com/spreadsheets/d/" + id + "/htmlview"
+}
+
+// titlePattern matches the <title> element in an HTML response.
+var titlePattern = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+
+// FetchTitle retrieves the spreadsheet's display name by scraping the
+// <title> element from the public htmlview page. The trailing " - Google Drive"
+// (or similar) suffix Google appends is stripped. Returns ErrNotPublic for
+// sheets that aren't shared.
+func FetchTitle(ctx context.Context, id string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, htmlviewURL(id), nil)
+	if err != nil {
+		return "", err
+	}
+	// Only the <head> is needed; Google serves the title in the first few KB.
+	req.Header.Set("Range", "bytes=0-8191")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetching sheet title: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading sheet title response: %w", err)
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return "", ErrNotPublic
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return "", fmt.Errorf("unexpected HTTP %d fetching sheet title", resp.StatusCode)
+	}
+	return parseTitle(body), nil
+}
+
+// parseTitle extracts the spreadsheet title from an htmlview HTML body,
+// stripping the trailing " - Google Drive" / " - Google Sheets" suffix Google
+// appends. Returns "" if no title tag is found.
+func parseTitle(body []byte) string {
+	m := titlePattern.FindSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	t := strings.TrimSpace(string(m[1]))
+	for _, suffix := range []string{" - Google Drive", " - Google Sheets", " - Google Docs"} {
+		if strings.HasSuffix(t, suffix) {
+			t = strings.TrimSpace(strings.TrimSuffix(t, suffix))
+			break
+		}
+	}
+	return t
+}
+
 // FetchCSV retrieves the first tab of a public sheet as CSV bytes.
 // Returns ErrNotPublic if Google serves an HTML login page instead of CSV.
 func FetchCSV(ctx context.Context, id string) ([]byte, error) {
