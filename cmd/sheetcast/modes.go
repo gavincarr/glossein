@@ -6,13 +6,13 @@ import "time"
 //
 //	listen: passive comprehension — just enough time to close the sentence mentally
 //	shadow: speak-along (repeat each sentence aloud after it plays)
-//	drill:  prompt → silent recall → next prompt
+//	repeat: same gap as listen (placeholder for future tuning)
 var gapModes = map[string]time.Duration{
 	"listen": 1000 * time.Millisecond,
 	"shadow": 3500 * time.Millisecond,
-	"drill":  6000 * time.Millisecond,
+	"repeat": 1000 * time.Millisecond,
 }
 
 func modeNames() []string {
-	return []string{"listen", "shadow", "drill"}
+	return []string{"listen", "shadow", "repeat"}
 }

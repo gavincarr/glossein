@@ -45,8 +45,8 @@ go run ./app/flashcards -port 8080
 A Go CLI that takes the same sheet URLs and produces a single audio
 file — all target-language sentences synthesised via Google Cloud TTS
 and concatenated with configurable silence between them. Good for
-passive listening on a commute, shadowing, or drilling active recall
-with longer gaps.
+passive listening on a commute, shadowing, or repeating sentences
+back with longer gaps.
 
 Install or build:
 

@@ -230,9 +230,12 @@ func TestResolveGap(t *testing.T) {
 		want    time.Duration
 		wantErr bool
 	}{
-		{"listen default", options{Mode: "listen"}, 1200 * time.Millisecond, false},
+		{"listen explicit", options{Mode: "listen"}, 1000 * time.Millisecond, false},
 		{"shadow", options{Mode: "shadow"}, 3500 * time.Millisecond, false},
-		{"drill", options{Mode: "drill"}, 6000 * time.Millisecond, false},
+		{"repeat explicit", options{Mode: "repeat"}, 1000 * time.Millisecond, false},
+		{"unset mode defaults to listen", options{}, 1000 * time.Millisecond, false},
+		{"unset mode with --repeat>1 defaults to repeat", options{Repeat: 3}, 1000 * time.Millisecond, false},
+		{"explicit --mode wins over --repeat default", options{Mode: "shadow", Repeat: 3}, 3500 * time.Millisecond, false},
 		{"--gap overrides mode", options{Mode: "listen", Gap: 2500 * time.Millisecond}, 2500 * time.Millisecond, false},
 		{"--gap overrides even with unknown mode", options{Mode: "nope", Gap: 500 * time.Millisecond}, 500 * time.Millisecond, false},
 		{"unknown mode without --gap errors", options{Mode: "nope"}, 0, true},
@@ -251,6 +254,34 @@ func TestResolveGap(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("gap = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRepeatChunks(t *testing.T) {
+	a, b := []byte{1, 2}, []byte{3, 4}
+	cases := []struct {
+		name   string
+		chunks [][]byte
+		n      int
+		want   [][]byte
+	}{
+		{"n=0 is no-op", [][]byte{a, b}, 0, [][]byte{a, b}},
+		{"n=1 is no-op", [][]byte{a, b}, 1, [][]byte{a, b}},
+		{"n=3 duplicates each in order", [][]byte{a, b}, 3, [][]byte{a, a, a, b, b, b}},
+		{"empty input", nil, 5, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := repeatChunks(tc.chunks, tc.n)
+			if len(got) != len(tc.want) {
+				t.Fatalf("len = %d, want %d", len(got), len(tc.want))
+			}
+			for i := range got {
+				if &got[i][0] != &tc.want[i][0] {
+					t.Errorf("chunk %d: got %v, want %v (slice identity)", i, got[i], tc.want[i])
+				}
 			}
 		})
 	}

@@ -42,8 +42,9 @@ type options struct {
 	Lang         string        `long:"lang" value-name:"CODE" description:"language code override (default: inferred from voice)"`
 	Project      string        `long:"project" env:"GOOGLE_CLOUD_PROJECT" value-name:"ID" description:"GCP project for billing/quota (overrides ADC quota-project setting)"`
 	Rate         int           `long:"rate" default:"24000" value-name:"HZ" description:"sample rate in Hz"`
-	Mode         string        `long:"mode" short:"m" default:"listen" choice:"listen" choice:"shadow" choice:"drill" description:"gap mode"`
+	Mode         string        `long:"mode" short:"m" choice:"listen" choice:"shadow" choice:"repeat" description:"gap mode (default: 'repeat' when --repeat>1, else 'listen')"`
 	Gap          time.Duration `long:"gap" value-name:"DURATION" description:"override preset inter-sentence silence (e.g. 2.5s)"`
+	Repeat       int           `long:"repeat" short:"r" default:"1" value-name:"N" description:"play each sentence N times before moving to the next"`
 	Lead         time.Duration `long:"lead" default:"100ms" value-name:"DURATION" description:"silence before first sentence"`
 	Trail        time.Duration `long:"trail" default:"1s" value-name:"DURATION" description:"silence after last sentence"`
 	OutputDir    string        `long:"output-dir" short:"d" value-name:"DIR" description:"output directory (default: $SHEETCAST_OUTPUT_DIR, else ./data if it exists, else /tmp)"`
@@ -109,6 +110,9 @@ func run() error {
 	}
 	if opts.Rate < 8000 {
 		return fmt.Errorf("--rate must be at least 8000, got %d", opts.Rate)
+	}
+	if opts.Repeat < 1 {
+		return fmt.Errorf("--repeat must be at least 1, got %d", opts.Repeat)
 	}
 
 	gap, err := resolveGap(opts)
@@ -201,6 +205,8 @@ func run() error {
 		pcmChunks[i] = pcm
 	}
 
+	pcmChunks = repeatChunks(pcmChunks, opts.Repeat)
+
 	if err := writeWAV(wavPath, format, pcmChunks, gap, opts.Lead, opts.Trail); err != nil {
 		return err
 	}
@@ -241,14 +247,28 @@ func resolveVoice(opts options, csv []byte) (string, string) {
 	return defaultVoice, "default"
 }
 
+// resolveMode returns the explicit --mode if set, otherwise picks "repeat" when
+// --repeat>1 (so repeated sentences inherit the repeat-mode gap by default) and
+// "listen" in all other cases.
+func resolveMode(opts options) string {
+	if opts.Mode != "" {
+		return opts.Mode
+	}
+	if opts.Repeat > 1 {
+		return "repeat"
+	}
+	return "listen"
+}
+
 func resolveGap(opts options) (time.Duration, error) {
 	if opts.Gap > 0 {
 		return opts.Gap, nil
 	}
-	if d, ok := gapModes[opts.Mode]; ok {
+	mode := resolveMode(opts)
+	if d, ok := gapModes[mode]; ok {
 		return d, nil
 	}
-	return 0, fmt.Errorf("unknown --mode %q (valid: %s)", opts.Mode, strings.Join(modeNames(), ", "))
+	return 0, fmt.Errorf("unknown --mode %q (valid: %s)", mode, strings.Join(modeNames(), ", "))
 }
 
 func validateSentences(sentences []string) error {
@@ -413,6 +433,21 @@ func synthesizeAll(ctx context.Context, client *tts.Client, sentences []string, 
 		return nil, firstErr
 	}
 	return results, nil
+}
+
+// repeatChunks duplicates each chunk n times in place, preserving order. n<=1
+// is a no-op. The same byte slice is reused across copies — writeWAV only reads.
+func repeatChunks(chunks [][]byte, n int) [][]byte {
+	if n <= 1 {
+		return chunks
+	}
+	out := make([][]byte, 0, len(chunks)*n)
+	for _, c := range chunks {
+		for i := 0; i < n; i++ {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func writeWAV(path string, f audio.Format, chunks [][]byte, gap, lead, trail time.Duration) error {
