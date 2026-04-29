@@ -174,22 +174,29 @@ func TestResolveOutputPaths(t *testing.T) {
 		name    string
 		out     string
 		mp3     bool
+		repeat  int
 		wantWAV string
 		wantMP3 string
 	}{
-		{"wav default, no ext added", "sheetcast.wav", false, "sheetcast.wav", ""},
-		{"wav adds .wav when missing", "deck", false, "deck.wav", ""},
-		{"wav preserves path", "/tmp/deck.wav", false, "/tmp/deck.wav", ""},
-		{"mp3 from bare name", "deck", true, "deck.wav", "deck.mp3"},
-		{"mp3 from .wav name", "deck.wav", true, "deck.wav", "deck.mp3"},
-		{"mp3 from .mp3 name", "deck.mp3", true, "deck.wav", "deck.mp3"},
-		{"mp3 preserves directory", "/tmp/deck", true, "/tmp/deck.wav", "/tmp/deck.mp3"},
-		{"mp3 from path/.wav", "/tmp/deck.wav", true, "/tmp/deck.wav", "/tmp/deck.mp3"},
+		{"wav default, no ext added", "sheetcast.wav", false, 1, "sheetcast.wav", ""},
+		{"wav adds .wav when missing", "deck", false, 1, "deck.wav", ""},
+		{"wav preserves path", "/tmp/deck.wav", false, 1, "/tmp/deck.wav", ""},
+		{"mp3 from bare name", "deck", true, 1, "deck.wav", "deck.mp3"},
+		{"mp3 from .wav name", "deck.wav", true, 1, "deck.wav", "deck.mp3"},
+		{"mp3 from .mp3 name", "deck.mp3", true, 1, "deck.wav", "deck.mp3"},
+		{"mp3 preserves directory", "/tmp/deck", true, 1, "/tmp/deck.wav", "/tmp/deck.mp3"},
+		{"mp3 from path/.wav", "/tmp/deck.wav", true, 1, "/tmp/deck.wav", "/tmp/deck.mp3"},
+		{"repeat=0 same as 1", "deck.wav", false, 0, "deck.wav", ""},
+		{"repeat>1 wav appends _xN before ext", "Title.wav", false, 3, "Title_x3.wav", ""},
+		{"repeat>1 wav adds ext then suffix", "deck", false, 2, "deck_x2.wav", ""},
+		{"repeat>1 wav preserves dir", "/tmp/deck.wav", false, 5, "/tmp/deck_x5.wav", ""},
+		{"repeat>1 mp3 suffixes both", "/tmp/deck", true, 3, "/tmp/deck_x3.wav", "/tmp/deck_x3.mp3"},
+		{"repeat>1 mp3 from .wav suffixes both", "deck.wav", true, 4, "deck_x4.wav", "deck_x4.mp3"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotWAV, gotMP3 := resolveOutputPaths(tc.out, tc.mp3)
+			gotWAV, gotMP3 := resolveOutputPaths(tc.out, tc.mp3, tc.repeat)
 			if gotWAV != tc.wantWAV {
 				t.Errorf("wav = %q, want %q", gotWAV, tc.wantWAV)
 			}

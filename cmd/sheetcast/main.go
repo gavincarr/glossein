@@ -170,7 +170,7 @@ func run() error {
 		return err
 	}
 	slog.Debug("output base resolved", "path", base)
-	wavPath, mp3Path := resolveOutputPaths(base, opts.MP3)
+	wavPath, mp3Path := resolveOutputPaths(base, opts.MP3, opts.Repeat)
 
 	if opts.MP3 {
 		if err := audio.EncodeMP3Preflight(); err != nil {
@@ -364,18 +364,28 @@ func slugify(s string) string {
 	return strings.Trim(b.String(), "_")
 }
 
-func resolveOutputPaths(out string, mp3 bool) (wavPath, mp3Path string) {
+func resolveOutputPaths(out string, mp3 bool, repeat int) (wavPath, mp3Path string) {
 	if !mp3 {
 		if filepath.Ext(out) == "" {
-			return out + ".wav", ""
+			out += ".wav"
 		}
-		return out, ""
+		return withRepeatSuffix(out, repeat), ""
 	}
 	base := strings.TrimSuffix(strings.TrimSuffix(out, ".mp3"), ".wav")
 	if filepath.Ext(out) == "" {
 		base = out
 	}
-	return base + ".wav", base + ".mp3"
+	return withRepeatSuffix(base+".wav", repeat), withRepeatSuffix(base+".mp3", repeat)
+}
+
+// withRepeatSuffix inserts "_xN" before the file extension when n>1, so the
+// produced filename reflects the --repeat count. n<=1 returns path unchanged.
+func withRepeatSuffix(path string, n int) string {
+	if n <= 1 {
+		return path
+	}
+	ext := filepath.Ext(path)
+	return strings.TrimSuffix(path, ext) + fmt.Sprintf("_x%d", n) + ext
 }
 
 func synthesizeAll(ctx context.Context, client *tts.Client, sentences []string, concurrency int) ([][]byte, error) {
